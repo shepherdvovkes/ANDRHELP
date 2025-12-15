@@ -1,26 +1,15 @@
 class AppConfig {
-  /// WebSocket URI backend'а.
-  ///
-  /// Для dev по умолчанию используется localhost backend через Android-эмулятор.
-  /// Для prod можно переопределить через:
-  ///   --dart-define=WS_URI=wss://mail.s0me.uk
-  static const wsUri = String.fromEnvironment(
-    'WS_URI',
-    defaultValue: 'ws://10.0.2.2:3100',
-  );
-}
-
-class AppConfig {
   /// WebSocket URI backend-сервера.
   ///
-  /// По умолчанию нацелено на прод-сервер mail.s0me.uk:4000, но может быть
-  /// переопределено через:
+  /// По умолчанию нацелено на прод-сервер mail.s0me.uk по HTTPS (wss, порт 443),
+  /// проксируемый через nginx на backend-контейнер ANDRHELP.
   ///
-  /// flutter run --dart-define=WS_URI=ws://10.0.2.2:4000
+  /// Для локальной разработки можно переопределить, например:
+  ///   flutter run --dart-define=WS_URI=ws://10.0.2.2:3100
   static const wsUri = String.fromEnvironment(
     'WS_URI',
-    defaultValue: 'ws://mail.s0me.uk:4000',
+    // Прод-конфиг: защищённый WebSocket через nginx на 443
+    defaultValue: 'wss://mail.s0me.uk/andrhelp-ws',
   );
 }
-
 
