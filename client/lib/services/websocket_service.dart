@@ -10,11 +10,13 @@ typedef AnswerCallback = void Function({
   required DateTime timestamp,
 });
 typedef StatusCallback = void Function(bool connected);
+typedef ServerStatusCallback = void Function(String status);
 
 class WebSocketService {
   final Uri serverUri;
   final AnswerCallback onAnswer;
   final StatusCallback? onStatusChanged;
+  final ServerStatusCallback? onServerStatus;
 
   WebSocketChannel? _channel;
   StreamSubscription? _sub;
@@ -26,6 +28,7 @@ class WebSocketService {
     required this.serverUri,
     required this.onAnswer,
     this.onStatusChanged,
+    this.onServerStatus,
   });
 
   void connect() {
@@ -57,6 +60,9 @@ class WebSocketService {
             (jsonData['timestamp'] as num?)?.toInt() ?? 0,
           ),
         );
+      } else if (type == 'status') {
+        final status = jsonData['status'] as String? ?? '';
+        onServerStatus?.call(status);
       }
     } catch (_) {
       // ignore malformed messages

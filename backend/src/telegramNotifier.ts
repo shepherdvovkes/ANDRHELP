@@ -17,6 +17,10 @@ export class TelegramNotifier {
     }
   }
 
+  get isEnabled(): boolean {
+    return !!this.bot && !!config.telegramChatId;
+  }
+
   async sendQuestionAnswer(question: string, answerMarkdown: string) {
     if (!this.bot || !config.telegramChatId) return;
 

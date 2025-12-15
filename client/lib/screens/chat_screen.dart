@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -9,7 +10,8 @@ import '../models/app_settings.dart';
 import '../models/message.dart';
 import '../providers/settings_provider.dart';
 import '../services/audio_service.dart';
-import '../services/websocket_service.dart';
+import '../services/speech_to_text_service.dart';
+import '../services/openai_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -23,12 +25,17 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   AudioService? _audioService;
-  WebSocketService? _wsService;
+  SpeechToTextService? _speechService;
+  OpenAIService? _openAIService;
+  Stream<Uint8List>? _audioStream;
+  
   String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-  int _chunkId = 0;
   bool _micReady = false;
-  bool _wsConnected = false;
   bool _isMuted = false;
+  bool _speechConnected = false;
+  double _micLevel = 0.0;
+  StreamSubscription<double>? _levelSub;
+  Timer? _questionCheckTimer;
 
   @override
   void initState() {
@@ -37,60 +44,124 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _initStreaming() async {
-    _wsService = WebSocketService(
-      serverUri: Uri.parse(AppConfig.wsUri),
-      onAnswer: ({
-        required String question,
-        required String answerMarkdown,
-        required DateTime timestamp,
-      }) {
-        addAssistantMessage(
-          question: question,
-          answerMarkdown: answerMarkdown,
-          timestamp: timestamp,
-        );
-      },
-      onStatusChanged: (connected) {
-        if (!mounted) return;
-        setState(() {
-          _wsConnected = connected;
-        });
-      },
+    // Инициализируем OpenAI сервис
+    _openAIService = OpenAIService(
+      apiKey: AppConfig.openAiApiKey,
     );
-    _wsService!.connect();
 
-    _audioService = AudioService(
-      onChunk: (bytes) {
-        if (_isMuted) return;
-        final ws = _wsService;
-        if (ws == null) return;
-        _chunkId += 1;
-        ws.sendAudioChunk(
-          sessionId: _sessionId,
-          chunkId: _chunkId,
-          bytes: bytes,
-        );
+    // Инициализируем Speech-to-Text сервис
+    final credentialsJson = AppConfig.googleCredentialsJson;
+    if (credentialsJson.isEmpty) {
+      print('ChatScreen: Google credentials not provided');
+      if (mounted) {
+        setState(() {
+          _micReady = false;
+        });
+      }
+      return;
+    }
+
+    _speechService = SpeechToTextService(
+      credentialsJson: credentialsJson,
+      onTranscript: ({required String text, required bool isFinal}) {
+        if (!mounted) return;
+        
+        // Обрабатываем только финальные транскрипты
+        if (isFinal && text.isNotEmpty) {
+          _processTranscript(text);
+        }
       },
     );
+
+    // Инициализируем аудио сервис
+    _audioService = AudioService();
 
     final ok = await _audioService!.initAndStart();
+    if (ok) {
+      _levelSub = _audioService!.levelStream.listen((level) {
+        if (!mounted) return;
+        setState(() {
+          _micLevel = level;
+        });
+      });
+
+      // Получаем аудио стрим
+      _audioStream = _audioService!.audioStream;
+    }
+
     if (!mounted) return;
     setState(() {
       _micReady = ok;
     });
+
+    // Запускаем Speech-to-Text стриминг
+    if (ok && _audioStream != null && credentialsJson.isNotEmpty) {
+      final initialized = await _speechService!.initialize();
+      if (initialized) {
+        _speechService!.startStreaming(_audioStream!);
+        if (mounted) {
+          setState(() {
+            _speechConnected = true;
+          });
+        }
+      }
+    }
+  }
+
+  void _processTranscript(String text) {
+    if (_isMuted) return; // Игнорируем если микрофон выключен
+    // Проверяем наличие вопроса в тексте
+    final context = _speechService!.getBufferedText();
+    _checkForQuestion(context);
+  }
+
+  Future<void> _checkForQuestion(String context) async {
+    if (context.trim().isEmpty) return;
+    if (_openAIService == null) return;
+
+    // Простая эвристика: проверяем наличие маркеров вопроса
+    final hasQuestionMarkers = context.contains('?') ||
+        context.toLowerCase().contains('что') ||
+        context.toLowerCase().contains('как') ||
+        context.toLowerCase().contains('почему') ||
+        context.toLowerCase().contains('где') ||
+        context.toLowerCase().contains('объясни');
+
+    if (!hasQuestionMarkers) return;
+
+    try {
+      final question = await _openAIService!.detectQuestion(context);
+      if (question != null && question.isNotEmpty) {
+        // Найден вопрос - генерируем ответ
+        final answer = await _openAIService!.answerQuestion(question, context);
+        if (answer != null && answer.isNotEmpty) {
+          addAssistantMessage(
+            question: question,
+            answerMarkdown: answer,
+            timestamp: DateTime.now(),
+          );
+        }
+      }
+    } catch (e) {
+      print('ChatScreen: Error processing question: $e');
+    }
   }
 
   void _toggleMute() {
     setState(() {
       _isMuted = !_isMuted;
     });
+    // Mute только останавливает обработку, но не останавливает стриминг
+    // чтобы не терять соединение с Google API
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _levelSub?.cancel();
+    _questionCheckTimer?.cancel();
     _audioService?.stop();
-    unawaited(_wsService?.dispose());
+    _speechService?.dispose();
     super.dispose();
   }
 
@@ -108,7 +179,6 @@ class _ChatScreenState extends State<ChatScreen> {
           timestamp: timestamp,
         ),
       );
-      // ограничиваем историю до последних 200 сообщений
       const maxMessages = 200;
       if (_messages.length > maxMessages) {
         _messages.removeRange(0, _messages.length - maxMessages);
@@ -178,11 +248,24 @@ class _ChatScreenState extends State<ChatScreen> {
               padding: EdgeInsets.only(right: 16),
               child: Icon(Icons.mic_off, color: Colors.redAccent),
             ),
+          if (_micReady)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: SizedBox(
+                width: 40,
+                child: LinearProgressIndicator(
+                  value: _micLevel,
+                  backgroundColor: Colors.black26,
+                  color: Colors.greenAccent,
+                  minHeight: 4,
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Icon(
-              _wsConnected ? Icons.cloud_done : Icons.cloud_off,
-              color: _wsConnected ? Colors.greenAccent : Colors.orangeAccent,
+              _speechConnected ? Icons.cloud_done : Icons.cloud_off,
+              color: _speechConnected ? Colors.greenAccent : Colors.orangeAccent,
             ),
           ),
         ],
