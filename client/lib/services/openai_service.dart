@@ -76,7 +76,9 @@ class OpenAIService {
             },
             {
               'role': 'user',
-              'content': 'Контекст предыдущего диалога (если есть):\n$context\n\nВопрос интервьюера:\n$question',
+              'content': context.isNotEmpty 
+                  ? 'Контекст предыдущего диалога:\n$context\n\nВопрос интервьюера:\n$question'
+                  : 'Вопрос интервьюера:\n$question',
             },
           ],
           'max_tokens': 256,

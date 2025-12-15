@@ -193,9 +193,48 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _processTranscript(String text) {
     if (_isMuted) return; // Игнорируем если микрофон выключен
-    // Проверяем наличие вопроса в тексте
-    final context = _speechService!.getBufferedText();
+    // Формируем полный контекст диалога из истории сообщений
+    final context = _buildDialogueContext();
     _checkForQuestion(context);
+  }
+
+  /// Формирует контекст диалога из истории сообщений
+  String _buildDialogueContext({int maxLength = 2000}) {
+    final buffer = StringBuffer();
+    
+    // Добавляем последние транскрипты из буфера STT (для текущей сессии)
+    final recentTranscripts = _speechService!.getBufferedText(lastChars: 500);
+    if (recentTranscripts.isNotEmpty) {
+      buffer.writeln('Последние реплики интервьюера:');
+      buffer.writeln(recentTranscripts);
+      buffer.writeln();
+    }
+    
+    // Добавляем историю диалога из сообщений (только финальные транскрипты и ответы)
+    final dialogueHistory = <String>[];
+    for (final msg in _messages) {
+      if (msg.role == MessageRole.transcript && !msg.isPartial) {
+        dialogueHistory.add('Интервьюер: ${msg.content}');
+      } else if (msg.role == MessageRole.assistantAnswer) {
+        dialogueHistory.add('Вопрос: ${msg.question}');
+        dialogueHistory.add('Ответ: ${msg.content}');
+      }
+    }
+    
+    if (dialogueHistory.isNotEmpty) {
+      buffer.writeln('История диалога:');
+      // Берем последние элементы истории, чтобы уложиться в maxLength
+      final historyText = dialogueHistory.join('\n');
+      if (historyText.length > maxLength - buffer.length) {
+        final truncated = historyText.substring(historyText.length - (maxLength - buffer.length));
+        buffer.writeln('...$truncated');
+      } else {
+        buffer.writeln(historyText);
+      }
+    }
+    
+    final result = buffer.toString().trim();
+    return result.isEmpty ? recentTranscripts : result;
   }
 
   Future<void> _checkForQuestion(String context) async {
@@ -233,8 +272,9 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final question = await _openAIService!.detectQuestion(context);
       if (question != null && question.isNotEmpty) {
-        // Найден вопрос - генерируем ответ
-        final answer = await _openAIService!.answerQuestion(question, context);
+        // Найден вопрос - генерируем ответ с полным контекстом диалога
+        final fullContext = _buildDialogueContext();
+        final answer = await _openAIService!.answerQuestion(question, fullContext);
         if (answer != null && answer.isNotEmpty) {
           addAssistantMessage(
             question: question,
