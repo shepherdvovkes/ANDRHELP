@@ -36,6 +36,8 @@ class _ChatScreenState extends State<ChatScreen> {
   double _micLevel = 0.0;
   StreamSubscription<double>? _levelSub;
   Timer? _questionCheckTimer;
+  String _currentPartialTranscript = ''; // Текущий промежуточный транскрипт
+  int? _lastPartialMessageIndex; // Индекс последнего сообщения с partial транскриптом
 
   @override
   void initState() {
@@ -66,9 +68,15 @@ class _ChatScreenState extends State<ChatScreen> {
       onTranscript: ({required String text, required bool isFinal}) {
         if (!mounted) return;
         
-        // Обрабатываем только финальные транскрипты
-        if (isFinal && text.isNotEmpty) {
-          _processTranscript(text);
+        if (text.isNotEmpty) {
+          if (isFinal) {
+            // Финальный транскрипт - добавляем как обычное сообщение
+            _addTranscriptMessage(text, isFinal: true);
+            _processTranscript(text);
+          } else {
+            // Промежуточный транскрипт - обновляем текущее сообщение
+            _updatePartialTranscript(text);
+          }
         }
       },
     );
@@ -106,6 +114,79 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
     }
+  }
+
+  void _addTranscriptMessage(String text, {required bool isFinal}) {
+    if (_isMuted) return;
+    
+    setState(() {
+      if (isFinal) {
+        // Удаляем предыдущий partial транскрипт если был
+        if (_lastPartialMessageIndex != null && 
+            _lastPartialMessageIndex! < _messages.length &&
+            _messages[_lastPartialMessageIndex!].isPartial) {
+          _messages.removeAt(_lastPartialMessageIndex!);
+          _lastPartialMessageIndex = null;
+        }
+        
+        // Добавляем финальный транскрипт
+        _messages.add(
+          ChatMessage(
+            role: MessageRole.transcript,
+            question: '',
+            content: text,
+            timestamp: DateTime.now(),
+            isPartial: false,
+          ),
+        );
+        _currentPartialTranscript = '';
+      }
+      
+      const maxMessages = 200;
+      if (_messages.length > maxMessages) {
+        _messages.removeRange(0, _messages.length - maxMessages);
+        // Обновляем индекс если нужно
+        if (_lastPartialMessageIndex != null) {
+          _lastPartialMessageIndex = _lastPartialMessageIndex! - 
+              (_messages.length - 200);
+        }
+      }
+    });
+    _autoScroll();
+  }
+
+  void _updatePartialTranscript(String text) {
+    if (_isMuted) return;
+    
+    setState(() {
+      _currentPartialTranscript = text;
+      
+      if (_lastPartialMessageIndex != null && 
+          _lastPartialMessageIndex! < _messages.length &&
+          _messages[_lastPartialMessageIndex!].isPartial) {
+        // Обновляем существующее partial сообщение
+        _messages[_lastPartialMessageIndex!] = ChatMessage(
+          role: MessageRole.transcript,
+          question: '',
+          content: text,
+          timestamp: DateTime.now(),
+          isPartial: true,
+        );
+      } else {
+        // Добавляем новое partial сообщение
+        _messages.add(
+          ChatMessage(
+            role: MessageRole.transcript,
+            question: '',
+            content: text,
+            timestamp: DateTime.now(),
+            isPartial: true,
+          ),
+        );
+        _lastPartialMessageIndex = _messages.length - 1;
+      }
+    });
+    _autoScroll();
   }
 
   void _processTranscript(String text) {
@@ -275,15 +356,54 @@ class _ChatScreenState extends State<ChatScreen> {
         itemCount: _messages.length,
         itemBuilder: (context, index) {
           final msg = _messages[index];
+          
+          // Определяем цвет карточки в зависимости от типа сообщения
+          Color? cardColor;
+          if (msg.role == MessageRole.transcript) {
+            cardColor = msg.isPartial 
+                ? Colors.blue.shade50 
+                : Colors.grey.shade100;
+          } else if (msg.role == MessageRole.assistantAnswer) {
+            cardColor = Colors.green.shade50;
+          }
+          
           return Padding(
             padding: const EdgeInsets.all(8.0),
             child: Card(
+              color: cardColor,
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (msg.question.isNotEmpty)
+                    // Заголовок в зависимости от типа сообщения
+                    if (msg.role == MessageRole.transcript)
+                      Row(
+                        children: [
+                          Icon(
+                            msg.isPartial ? Icons.mic : Icons.text_fields,
+                            size: 16,
+                            color: msg.isPartial 
+                                ? Colors.blue 
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            msg.isPartial ? 'Распознавание...' : 'Распознано:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: baseFontSize * 0.9,
+                              color: msg.isPartial 
+                                  ? Colors.blue 
+                                  : Colors.grey.shade700,
+                              fontStyle: msg.isPartial 
+                                  ? FontStyle.italic 
+                                  : FontStyle.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (msg.role == MessageRole.assistantAnswer && msg.question.isNotEmpty)
                       Text(
                         'Вопрос: ${msg.question}',
                         style: TextStyle(
@@ -291,11 +411,27 @@ class _ChatScreenState extends State<ChatScreen> {
                           fontSize: baseFontSize,
                         ),
                       ),
-                    const SizedBox(height: 8),
-                    _MarkdownWithMath(
-                      data: msg.content,
-                      baseFontSize: baseFontSize,
-                    ),
+                    if (msg.role == MessageRole.assistantAnswer && msg.question.isNotEmpty)
+                      const SizedBox(height: 8),
+                    // Контент
+                    if (msg.role == MessageRole.transcript)
+                      Text(
+                        msg.content,
+                        style: TextStyle(
+                          fontSize: baseFontSize,
+                          fontStyle: msg.isPartial 
+                              ? FontStyle.italic 
+                              : FontStyle.normal,
+                          color: msg.isPartial 
+                              ? Colors.blue.shade700 
+                              : Colors.black87,
+                        ),
+                      )
+                    else
+                      _MarkdownWithMath(
+                        data: msg.content,
+                        baseFontSize: baseFontSize,
+                      ),
                     const SizedBox(height: 4),
                     Text(
                       msg.timestamp.toLocal().toIso8601String(),
