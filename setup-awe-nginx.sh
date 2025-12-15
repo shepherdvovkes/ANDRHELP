@@ -22,10 +22,16 @@ echo "Testing nginx configuration..."
 if sudo nginx -t; then
     echo "✅ Configuration is valid!"
     echo ""
-    echo "Next steps:"
-    echo "1. Update SSL certificate paths in $NGINX_AVAILABLE if needed"
-    echo "2. Run: sudo systemctl reload nginx"
-    echo "3. Verify DNS points awe.s0me.uk to this server"
+    echo "Reloading nginx..."
+    sudo systemctl reload nginx
+    echo "✅ Nginx reloaded successfully!"
+    echo ""
+    echo "awe.s0me.uk is now configured (HTTP only for now)"
+    echo "To enable HTTPS:"
+    echo "1. Get SSL certificate: sudo certbot certonly --nginx -d awe.s0me.uk"
+    echo "2. Uncomment the HTTPS server block in $NGINX_AVAILABLE"
+    echo "3. Uncomment the HTTP redirect"
+    echo "4. Run: sudo nginx -t && sudo systemctl reload nginx"
 else
     echo "❌ ERROR: Nginx configuration test failed!"
     exit 1
