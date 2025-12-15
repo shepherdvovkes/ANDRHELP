@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'statistics_service.dart';
 
 /// Сервис для работы с OpenAI API (детекция вопросов и генерация ответов)
 class OpenAIService {
@@ -15,13 +16,7 @@ class OpenAIService {
     if (apiKey.isEmpty) return null;
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/chat/completions'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $apiKey',
-        },
-        body: json.encode({
+      final body = json.encode({
           'model': 'gpt-4o-mini',
           'messages': [
             {
@@ -37,8 +32,22 @@ class OpenAIService {
           ],
           'max_tokens': 64,
           'temperature': 0.1,
-        }),
+        });
+      
+      // Отслеживаем отправленные данные
+      StatisticsService().addOpenAiSent(body.length);
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+        },
+        body: body,
       );
+      
+      // Отслеживаем полученные данные
+      StatisticsService().addOpenAiReceived(response.bodyBytes.length);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
@@ -58,13 +67,7 @@ class OpenAIService {
     if (apiKey.isEmpty) return null;
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/chat/completions'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $apiKey',
-        },
-        body: json.encode({
+      final body = json.encode({
           'model': 'gpt-4o-mini',
           'messages': [
             {
@@ -83,8 +86,22 @@ class OpenAIService {
           ],
           'max_tokens': 256,
           'temperature': 0.2,
-        }),
+        });
+      
+      // Отслеживаем отправленные данные
+      StatisticsService().addOpenAiSent(body.length);
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+        },
+        body: body,
       );
+      
+      // Отслеживаем полученные данные
+      StatisticsService().addOpenAiReceived(response.bodyBytes.length);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;

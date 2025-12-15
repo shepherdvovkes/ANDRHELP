@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:googleapis_auth/auth_io.dart';
+import 'statistics_service.dart';
 
 typedef TranscriptCallback = void Function({
   required String text,
@@ -127,6 +128,8 @@ class SpeechToTextService {
         (data) {
           try {
             _currentRequest!.sink.add(data);
+            // Отслеживаем отправленные данные
+            StatisticsService().addSpeechToTextSent(data.length);
           } catch (e) {
             // Sink уже закрыт
           }
@@ -150,6 +153,9 @@ class SpeechToTextService {
       response.stream.listen(
         (chunk) {
           try {
+            // Отслеживаем полученные данные
+            StatisticsService().addSpeechToTextReceived(chunk.length);
+            
             final lines = utf8.decode(chunk).split('\n');
             for (final line in lines) {
               if (line.trim().isEmpty) continue;

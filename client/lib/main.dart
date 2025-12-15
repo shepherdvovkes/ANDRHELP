@@ -5,6 +5,7 @@ import 'app_theme.dart';
 import 'providers/settings_provider.dart';
 import 'screens/chat_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/statistics_screen.dart';
 
 void main() {
   runApp(const AndrHelperApp());
@@ -45,6 +46,7 @@ class _HomeShellState extends State<_HomeShell> {
   Widget build(BuildContext context) {
     final pages = [
       const ChatScreen(),
+      const StatisticsScreen(),
       const SettingsScreen(),
     ];
 
@@ -59,6 +61,10 @@ class _HomeShellState extends State<_HomeShell> {
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
             label: 'Чат',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart),
+            label: 'Статистика',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

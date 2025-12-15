@@ -12,6 +12,7 @@ import '../providers/settings_provider.dart';
 import '../services/audio_service.dart';
 import '../services/speech_to_text_service.dart';
 import '../services/openai_service.dart';
+import '../services/statistics_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -74,6 +75,16 @@ class _ChatScreenState extends State<ChatScreen> {
           if (isFinal) {
             // Финальный транскрипт - добавляем как обычное сообщение
             _addTranscriptMessage(text, isFinal: true);
+            // Подсчитываем предложения (по точкам, восклицательным и вопросительным знакам)
+            final sentences = text
+                .split(RegExp(r'[.!?]+'))
+                .where((s) => s.trim().isNotEmpty)
+                .length;
+            if (sentences > 0) {
+              for (int i = 0; i < sentences; i++) {
+                StatisticsService().incrementSentencesRecognized();
+              }
+            }
             _processTranscript(text);
           } else {
             // Промежуточный транскрипт - обновляем текущее сообщение
@@ -272,6 +283,9 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final question = await _openAIService!.detectQuestion(context);
       if (question != null && question.isNotEmpty) {
+        // Отслеживаем распознанный вопрос
+        StatisticsService().incrementQuestionsDetected();
+        
         // Найден вопрос - генерируем ответ с полным контекстом диалога
         final fullContext = _buildDialogueContext();
         final answer = await _openAIService!.answerQuestion(question, fullContext);
