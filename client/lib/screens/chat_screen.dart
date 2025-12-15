@@ -38,6 +38,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _questionCheckTimer;
   String _currentPartialTranscript = ''; // Текущий промежуточный транскрипт
   int? _lastPartialMessageIndex; // Индекс последнего сообщения с partial транскриптом
+  bool _isProcessingQuestion = false; // Флаг обработки вопроса
+  DateTime? _lastQuestionCheckTime; // Время последней проверки вопроса
 
   @override
   void initState() {
@@ -199,6 +201,15 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _checkForQuestion(String context) async {
     if (context.trim().isEmpty) return;
     if (_openAIService == null) return;
+    if (_isProcessingQuestion) return; // Уже обрабатываем вопрос
+
+    // Debouncing: проверяем не чаще чем раз в 2 секунды
+    final now = DateTime.now();
+    if (_lastQuestionCheckTime != null &&
+        now.difference(_lastQuestionCheckTime!).inSeconds < 2) {
+      return;
+    }
+    _lastQuestionCheckTime = now;
 
     // Простая эвристика: проверяем наличие маркеров вопроса
     final hasQuestionMarkers = context.contains('?') ||
@@ -206,9 +217,18 @@ class _ChatScreenState extends State<ChatScreen> {
         context.toLowerCase().contains('как') ||
         context.toLowerCase().contains('почему') ||
         context.toLowerCase().contains('где') ||
-        context.toLowerCase().contains('объясни');
+        context.toLowerCase().contains('объясни') ||
+        context.toLowerCase().contains('расскажи') ||
+        context.toLowerCase().contains('опиши');
 
     if (!hasQuestionMarkers) return;
+
+    // Устанавливаем флаг обработки
+    if (mounted) {
+      setState(() {
+        _isProcessingQuestion = true;
+      });
+    }
 
     try {
       final question = await _openAIService!.detectQuestion(context);
@@ -225,6 +245,14 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     } catch (e) {
       print('ChatScreen: Error processing question: $e');
+      // Показываем ошибку через состояние, а не через SnackBar
+      // чтобы не требовать BuildContext
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingQuestion = false;
+        });
+      }
     }
   }
 
@@ -349,12 +377,26 @@ class _ChatScreenState extends State<ChatScreen> {
               color: _speechConnected ? Colors.greenAccent : Colors.orangeAccent,
             ),
           ),
+          if (_isProcessingQuestion)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
         ],
       ),
-      body: ListView.builder(
-        controller: _scrollController,
-        itemCount: _messages.length,
-        itemBuilder: (context, index) {
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
           final msg = _messages[index];
           
           // Определяем цвет карточки в зависимости от типа сообщения
@@ -446,6 +488,32 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           );
         },
+            ),
+          ),
+          // Индикатор обработки вопроса внизу экрана
+          if (_isProcessingQuestion)
+            Container(
+              padding: const EdgeInsets.all(12),
+              color: Colors.blue.shade50,
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Анализ вопроса и генерация ответа...',
+                    style: TextStyle(
+                      fontSize: baseFontSize * 0.9,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
