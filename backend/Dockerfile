@@ -20,6 +20,9 @@ RUN npm install --only=production
 
 COPY --from=builder /app/dist ./dist
 
+# Copy service account key for Google Cloud Speech-to-Text
+COPY speech-to-text-key.json ./speech-to-text-key.json
+
 # Default port (can be overridden via .env / PORT)
 ENV PORT=3100
 

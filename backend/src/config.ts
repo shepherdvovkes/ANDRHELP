@@ -11,6 +11,10 @@ export const config = {
     process.env.TELEGRAM_CHAT_ID || process.env.TELEGRAM_BOT || "",
   googleProjectId:
     process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || "",
+  googleApplicationCredentials:
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    process.env.GOOGLE_CREDENTIALS_PATH ||
+    "./speech-to-text-key.json",
 };
 
 export const runtimeFlags = {

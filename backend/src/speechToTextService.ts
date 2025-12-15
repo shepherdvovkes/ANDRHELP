@@ -2,6 +2,9 @@ import { EventEmitter } from "events";
 import { v1p1beta1 as speech } from "@google-cloud/speech";
 import { TranscriptEvent } from "./types";
 import { logger } from "./logger";
+import { config } from "./config";
+import * as path from "path";
+import * as fs from "fs";
 
 export interface SpeechToTextOptions {
   languageCode?: string;
@@ -19,7 +22,22 @@ export class SpeechToTextService extends EventEmitter {
 
   constructor(private options: SpeechToTextOptions = {}) {
     super();
-    this.client = new speech.SpeechClient();
+    
+    // Configure SpeechClient with service account key if available
+    const keyPath = path.resolve(config.googleApplicationCredentials);
+    let clientConfig: any = {};
+    
+    if (fs.existsSync(keyPath)) {
+      clientConfig.keyFilename = keyPath;
+      logger.info("STT", `Using service account key from: ${keyPath}`);
+    } else {
+      logger.warn(
+        "STT",
+        `Service account key not found at ${keyPath}, using default credentials`
+      );
+    }
+    
+    this.client = new speech.SpeechClient(clientConfig);
     this.startStream();
   }
 

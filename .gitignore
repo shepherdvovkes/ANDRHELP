@@ -21,6 +21,10 @@ yarn-error.log*
 # Environment / secrets
 .env
 **/.env
+**/*-key.json
+**/speech-to-text-key.json
+**/*-key.json
+**/speech-to-text-key.json
 
 # Docker / misc
 **/._*
