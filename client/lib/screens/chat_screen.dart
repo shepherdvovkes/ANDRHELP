@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:flutter_math_fork/flutter_math_fork.dart';
 import 'package:provider/provider.dart';
 
 import '../config.dart';
@@ -245,7 +244,6 @@ class _MarkdownWithMath extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Very basic: render markdown, and let math be inline via flutter_math_fork
     return MarkdownBody(
       data: data,
       selectable: true,
@@ -256,26 +254,6 @@ class _MarkdownWithMath extends StatelessWidget {
           fontFamily: 'monospace',
         ),
       ),
-      builders: {
-        'math': MathBuilder(baseFontSize: baseFontSize),
-      },
     );
   }
 }
-
-class MathBuilder extends MarkdownElementBuilder {
-  final double baseFontSize;
-
-  MathBuilder({required this.baseFontSize});
-
-  @override
-  Widget visitText(md.Text text, TextStyle? preferredStyle) {
-    final content = text.text;
-    return Math.tex(
-      content,
-      textStyle: TextStyle(fontSize: baseFontSize),
-    );
-  }
-}
-
-
