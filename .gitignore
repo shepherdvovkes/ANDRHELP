@@ -1,0 +1,28 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Node / backend
+node_modules/
+dist/
+npm-debug.log*
+yarn-error.log*
+
+# Flutter / Dart
+**/build/
+**/.dart_tool/
+**/.packages
+**/pubspec.lock
+
+# Environment / secrets
+.env
+**/.env
+
+# Docker / misc
+**/._*
+
+
