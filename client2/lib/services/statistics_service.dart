@@ -73,87 +73,57 @@ class StatisticsService {
   }
 
   Future<void> addSpeechToTextSent(int bytes) async {
-    try {
-      final stats = await getStatistics();
-      await updateStatistics(
-        stats.copyWith(
-          speechToTextSentBytes: stats.speechToTextSentBytes + bytes,
-        ),
-      );
-    } catch (e) {
-      print('StatisticsService: addSpeechToTextSent error: $e');
-      rethrow;
-    }
+    final stats = await getStatistics();
+    await updateStatistics(
+      stats.copyWith(
+        speechToTextSentBytes: stats.speechToTextSentBytes + bytes,
+      ),
+    );
   }
 
   Future<void> addSpeechToTextReceived(int bytes) async {
-    try {
-      final stats = await getStatistics();
-      await updateStatistics(
-        stats.copyWith(
-          speechToTextReceivedBytes: stats.speechToTextReceivedBytes + bytes,
-        ),
-      );
-    } catch (e) {
-      print('StatisticsService: addSpeechToTextReceived error: $e');
-      rethrow;
-    }
+    final stats = await getStatistics();
+    await updateStatistics(
+      stats.copyWith(
+        speechToTextReceivedBytes: stats.speechToTextReceivedBytes + bytes,
+      ),
+    );
   }
 
   Future<void> addOpenAiSent(int bytes) async {
-    try {
-      final stats = await getStatistics();
-      await updateStatistics(
-        stats.copyWith(
-          openAiSentBytes: stats.openAiSentBytes + bytes,
-        ),
-      );
-    } catch (e) {
-      print('StatisticsService: addOpenAiSent error: $e');
-      rethrow;
-    }
+    final stats = await getStatistics();
+    await updateStatistics(
+      stats.copyWith(
+        openAiSentBytes: stats.openAiSentBytes + bytes,
+      ),
+    );
   }
 
   Future<void> addOpenAiReceived(int bytes) async {
-    try {
-      final stats = await getStatistics();
-      await updateStatistics(
-        stats.copyWith(
-          openAiReceivedBytes: stats.openAiReceivedBytes + bytes,
-        ),
-      );
-    } catch (e) {
-      print('StatisticsService: addOpenAiReceived error: $e');
-      rethrow;
-    }
+    final stats = await getStatistics();
+    await updateStatistics(
+      stats.copyWith(
+        openAiReceivedBytes: stats.openAiReceivedBytes + bytes,
+      ),
+    );
   }
 
   Future<void> incrementQuestionsDetected() async {
-    try {
-      final stats = await getStatistics();
-      await updateStatistics(
-        stats.copyWith(
-          questionsDetected: stats.questionsDetected + 1,
-        ),
-      );
-    } catch (e) {
-      print('StatisticsService: incrementQuestionsDetected error: $e');
-      rethrow;
-    }
+    final stats = await getStatistics();
+    await updateStatistics(
+      stats.copyWith(
+        questionsDetected: stats.questionsDetected + 1,
+      ),
+    );
   }
 
   Future<void> incrementSentencesRecognized() async {
-    try {
-      final stats = await getStatistics();
-      await updateStatistics(
-        stats.copyWith(
-          sentencesRecognized: stats.sentencesRecognized + 1,
-        ),
-      );
-    } catch (e) {
-      print('StatisticsService: incrementSentencesRecognized error: $e');
-      rethrow;
-    }
+    final stats = await getStatistics();
+    await updateStatistics(
+      stats.copyWith(
+        sentencesRecognized: stats.sentencesRecognized + 1,
+      ),
+    );
   }
 
   Future<void> resetStatistics() async {

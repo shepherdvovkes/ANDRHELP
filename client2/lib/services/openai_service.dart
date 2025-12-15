@@ -35,9 +35,7 @@ class OpenAIService {
         });
       
       // Отслеживаем отправленные данные
-      StatisticsService().addOpenAiSent(body.length).catchError((e) {
-        print('StatisticsService: Error tracking OpenAI sent bytes: $e');
-      });
+      StatisticsService().addOpenAiSent(body.length);
       
       final response = await http.post(
         Uri.parse('$baseUrl/chat/completions'),
@@ -49,9 +47,7 @@ class OpenAIService {
       );
       
       // Отслеживаем полученные данные
-      StatisticsService().addOpenAiReceived(response.bodyBytes.length).catchError((e) {
-        print('StatisticsService: Error tracking OpenAI received bytes: $e');
-      });
+      StatisticsService().addOpenAiReceived(response.bodyBytes.length);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;

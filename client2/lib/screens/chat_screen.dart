@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 
 import '../config.dart';
@@ -13,6 +12,7 @@ import '../services/audio_service.dart';
 import '../services/speech_to_text_service.dart';
 import '../services/openai_service.dart';
 import '../services/statistics_service.dart';
+import '../widgets/enhanced_markdown.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -82,9 +82,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 .length;
             if (sentences > 0) {
               for (int i = 0; i < sentences; i++) {
-                StatisticsService().incrementSentencesRecognized().catchError((e) {
-                  print('StatisticsService: Error incrementing sentences: $e');
-                });
+                StatisticsService().incrementSentencesRecognized();
               }
             }
             _processTranscript(text);
@@ -286,9 +284,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final question = await _openAIService!.detectQuestion(context);
       if (question != null && question.isNotEmpty) {
         // Отслеживаем распознанный вопрос
-        StatisticsService().incrementQuestionsDetected().catchError((e) {
-          print('StatisticsService: Error incrementing questions: $e');
-        });
+        StatisticsService().incrementQuestionsDetected();
         
         // Найден вопрос - генерируем ответ с полным контекстом диалога
         final fullContext = _buildDialogueContext();
@@ -397,162 +393,149 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>().settings;
     final baseFontSize = _fontSizeFor(settings);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ANDRHELPER'),
+        title: Row(
+          children: [
+            const Text('ANDRHELPER2'),
+            const SizedBox(width: 8),
+            // Индикатор статуса
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _micReady && _speechConnected
+                    ? Colors.green
+                    : Colors.orange,
+              ),
+            ),
+          ],
+        ),
+        elevation: 0,
         actions: [
+          // Индикатор уровня микрофона
+          if (_micReady)
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              width: 40,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  LinearProgressIndicator(
+                    value: _micLevel,
+                    backgroundColor: Colors.black26,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _micLevel > 0.1 ? Colors.greenAccent : Colors.grey,
+                    ),
+                    minHeight: 3,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${(_micLevel * 100).toInt()}%',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          // Кнопка mute/unmute
           IconButton(
             icon: Icon(
               _isMuted ? Icons.mic_off : Icons.mic,
-              color: _isMuted ? Colors.redAccent : null,
+              color: _isMuted ? Colors.redAccent : theme.colorScheme.primary,
             ),
             onPressed: _micReady ? _toggleMute : null,
             tooltip: _isMuted ? 'Включить микрофон' : 'Выключить микрофон',
           ),
-          if (!_micReady)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: Icon(Icons.mic_off, color: Colors.redAccent),
-            ),
-          if (_micReady)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: SizedBox(
-                width: 40,
-                child: LinearProgressIndicator(
-                  value: _micLevel,
-                  backgroundColor: Colors.black26,
-                  color: Colors.greenAccent,
-                  minHeight: 4,
-                ),
-              ),
-            ),
+          // Статус подключения
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: Icon(
               _speechConnected ? Icons.cloud_done : Icons.cloud_off,
-              color: _speechConnected ? Colors.greenAccent : Colors.orangeAccent,
+              color: _speechConnected 
+                  ? Colors.greenAccent 
+                  : Colors.orangeAccent,
+              size: 20,
             ),
           ),
-          if (_isProcessingQuestion)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                ),
-              ),
-            ),
         ],
       ),
       body: Column(
         children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-          final msg = _messages[index];
-          
-          // Определяем цвет карточки в зависимости от типа сообщения
-          Color? cardColor;
-          if (msg.role == MessageRole.transcript) {
-            cardColor = msg.isPartial 
-                ? Colors.blue.shade50 
-                : Colors.grey.shade100;
-          } else if (msg.role == MessageRole.assistantAnswer) {
-            cardColor = Colors.green.shade50;
-          }
-          
-          return Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Card(
-              color: cardColor,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Заголовок в зависимости от типа сообщения
-                    if (msg.role == MessageRole.transcript)
-                      Row(
-                        children: [
-                          Icon(
-                            msg.isPartial ? Icons.mic : Icons.text_fields,
-                            size: 16,
-                            color: msg.isPartial 
-                                ? Colors.blue 
-                                : Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            msg.isPartial ? 'Распознавание...' : 'Распознано:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: baseFontSize * 0.9,
-                              color: msg.isPartial 
-                                  ? Colors.blue 
-                                  : Colors.grey.shade700,
-                              fontStyle: msg.isPartial 
-                                  ? FontStyle.italic 
-                                  : FontStyle.normal,
-                            ),
-                          ),
-                        ],
-                      ),
-                    if (msg.role == MessageRole.assistantAnswer && msg.question.isNotEmpty)
-                      Text(
-                        'Вопрос: ${msg.question}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: baseFontSize,
-                        ),
-                      ),
-                    if (msg.role == MessageRole.assistantAnswer && msg.question.isNotEmpty)
-                      const SizedBox(height: 8),
-                    // Контент
-                    if (msg.role == MessageRole.transcript)
-                      Text(
-                        msg.content,
-                        style: TextStyle(
-                          fontSize: baseFontSize,
-                          fontStyle: msg.isPartial 
-                              ? FontStyle.italic 
-                              : FontStyle.normal,
-                          color: msg.isPartial 
-                              ? Colors.blue.shade700 
-                              : Colors.black87,
-                        ),
-                      )
-                    else
-                      _MarkdownWithMath(
-                        data: msg.content,
-                        baseFontSize: baseFontSize,
-                      ),
-                    const SizedBox(height: 4),
-                    Text(
-                      msg.timestamp.toLocal().toIso8601String(),
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(fontSize: baseFontSize * 0.7),
+          // Баннер статуса (если не готово)
+          if (!_micReady || !_speechConnected)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: Colors.orange.shade100,
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      !_micReady 
+                          ? 'Микрофон не активирован'
+                          : 'Подключение к сервису распознавания...',
+                      style: const TextStyle(fontSize: 12),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          );
-        },
-            ),
+          // Список сообщений
+          Expanded(
+            child: _messages.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.hearing,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Слушаю интервью...',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Вопросы будут автоматически распознаны',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = _messages[index];
+                      return _buildMessageCard(msg, baseFontSize, theme);
+                    },
+                  ),
           ),
-          // Индикатор обработки вопроса внизу экрана
+          // Индикатор обработки вопроса
           if (_isProcessingQuestion)
             Container(
               padding: const EdgeInsets.all(12),
-              color: Colors.blue.shade50,
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                border: Border(
+                  top: BorderSide(color: Colors.blue.shade200),
+                ),
+              ),
               child: Row(
                 children: [
                   const SizedBox(
@@ -561,11 +544,14 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    'Анализ вопроса и генерация ответа...',
-                    style: TextStyle(
-                      fontSize: baseFontSize * 0.9,
-                      fontStyle: FontStyle.italic,
+                  Expanded(
+                    child: Text(
+                      'Анализ вопроса и генерация ответа...',
+                      style: TextStyle(
+                        fontSize: baseFontSize * 0.9,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.blue.shade900,
+                      ),
                     ),
                   ),
                 ],
@@ -575,30 +561,136 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
     );
   }
-}
 
-/// Simple markdown renderer with math blocks support.
-class _MarkdownWithMath extends StatelessWidget {
-  final String data;
-  final double baseFontSize;
-
-  const _MarkdownWithMath({
-    required this.data,
-    required this.baseFontSize,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return MarkdownBody(
-      data: data,
-      selectable: true,
-      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-        p: TextStyle(fontSize: baseFontSize),
-        code: TextStyle(
-          fontSize: baseFontSize * 0.9,
-          fontFamily: 'monospace',
+  Widget _buildMessageCard(ChatMessage msg, double fontSize, ThemeData theme) {
+    // Определяем стиль карточки
+    Color? cardColor;
+    Color? borderColor;
+    IconData? icon;
+    String? label;
+    
+    if (msg.role == MessageRole.transcript) {
+      if (msg.isPartial) {
+        cardColor = Colors.blue.shade50;
+        borderColor = Colors.blue.shade200;
+        icon = Icons.mic;
+        label = 'Распознавание...';
+      } else {
+        cardColor = Colors.grey.shade50;
+        borderColor = Colors.grey.shade300;
+        icon = Icons.text_fields;
+        label = 'Распознано';
+      }
+    } else if (msg.role == MessageRole.assistantAnswer) {
+      cardColor = Colors.green.shade50;
+      borderColor = Colors.green.shade200;
+      icon = Icons.auto_awesome;
+      label = 'Ответ';
+    }
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        elevation: 2,
+        color: cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: borderColor ?? Colors.transparent, width: 1),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Заголовок
+              Row(
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 18, color: borderColor),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    label ?? '',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: fontSize * 0.85,
+                      color: borderColor,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Время
+                  Text(
+                    _formatTime(msg.timestamp),
+                    style: TextStyle(
+                      fontSize: fontSize * 0.7,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Вопрос (если есть)
+              if (msg.role == MessageRole.assistantAnswer && msg.question.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.help_outline, size: 16, color: Colors.green.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          msg.question,
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.green.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              // Контент
+              if (msg.role == MessageRole.transcript)
+                Text(
+                  msg.content,
+                  style: TextStyle(
+                    fontSize: fontSize,
+                    fontStyle: msg.isPartial ? FontStyle.italic : FontStyle.normal,
+                    color: msg.isPartial 
+                        ? Colors.blue.shade700 
+                        : Colors.black87,
+                  ),
+                )
+              else
+                EnhancedMarkdown(
+                  data: msg.content,
+                  baseFontSize: fontSize,
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final diff = now.difference(time);
+    
+    if (diff.inSeconds < 60) {
+      return 'только что';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} мин назад';
+    } else {
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    }
   }
 }

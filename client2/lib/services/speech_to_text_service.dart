@@ -128,10 +128,8 @@ class SpeechToTextService {
         (data) {
           try {
             _currentRequest!.sink.add(data);
-            // Отслеживаем отправленные данные (fire and forget, но с обработкой ошибок)
-            StatisticsService().addSpeechToTextSent(data.length).catchError((e) {
-              print('StatisticsService: Error tracking STT sent bytes: $e');
-            });
+            // Отслеживаем отправленные данные
+            StatisticsService().addSpeechToTextSent(data.length);
           } catch (e) {
             // Sink уже закрыт
           }
@@ -155,10 +153,8 @@ class SpeechToTextService {
       response.stream.listen(
         (chunk) {
           try {
-            // Отслеживаем полученные данные (fire and forget, но с обработкой ошибок)
-            StatisticsService().addSpeechToTextReceived(chunk.length).catchError((e) {
-              print('StatisticsService: Error tracking STT received bytes: $e');
-            });
+            // Отслеживаем полученные данные
+            StatisticsService().addSpeechToTextReceived(chunk.length);
             
             final lines = utf8.decode(chunk).split('\n');
             for (final line in lines) {
